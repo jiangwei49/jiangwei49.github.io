@@ -1,0 +1,143 @@
+---
+title: "Assignment for Data Science - Practical Machine Learning"
+author: "Wei Jiang"
+date: "Saturday, February 21, 2015"
+output: html_document
+---
+
+## Overview
+
+[HAR](http://groupware.les.inf.puc-rio.br/har) has collected data about personal activities. Here we are trying to use this data to predict person activity manner, the manner they do their exercises, and cross-validate with testing data. The training set will be splitted into two sets: one set (60% of data) for training, one set (40% of data) for cross-validation. Finally we will use the best model to predict on a testing set (20 observations).
+
+## Data
+
+First we download and read the data, and check summary:
+
+```{r, cache=TRUE, results='hide'}
+setwd=("d:/R/RStudio/coursera/8.Practical_machine_learning/ass1")
+if (!file.exists("pml-training.csv")) {
+    download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv")
+}
+if (!file.exists("pml-testing.csv")) {
+    download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv")
+}
+
+original_data <- read.csv("pml-training.csv", as.is = TRUE)
+dim(original_data)
+dim(original_data)
+summary(original_data)
+head(original_data)
+```
+
+Remove columns with too many NAs. Then prepare the training/testing data (60%/40%), and the pml-testing.csv is for predicting.
+
+```{r}
+library(dplyr)
+original_data <- select(original_data, -(raw_timestamp_part_1:raw_timestamp_part_2))
+original_data <- select(original_data, -(max_roll_belt:max_picth_belt))
+original_data <- select(original_data, -c(min_roll_belt,min_pitch_belt,amplitude_roll_belt,amplitude_pitch_belt,var_total_accel_belt:var_yaw_belt))
+original_data <- select(original_data, -(var_accel_arm:var_yaw_arm))
+original_data <- select(original_data, -(max_roll_arm:amplitude_yaw_arm))
+original_data <- select(original_data, -c(max_roll_dumbbell,max_picth_dumbbell,min_roll_dumbbell,min_pitch_dumbbell,amplitude_roll_dumbbell,amplitude_pitch_dumbbell,var_accel_dumbbell:var_yaw_dumbbell,max_roll_forearm,max_picth_forearm,min_roll_forearm,min_pitch_forearm,amplitude_roll_forearm,amplitude_pitch_forearm))
+original_data <- select(original_data, -(var_accel_forearm:var_yaw_forearm))
+original_data <- select(original_data, -(kurtosis_roll_belt:amplitude_yaw_belt))
+original_data <- select(original_data, -(kurtosis_roll_arm:skewness_yaw_arm))
+original_data <- select(original_data, -(kurtosis_roll_dumbbell:amplitude_yaw_dumbbell))
+original_data <- select(original_data, -(kurtosis_roll_forearm:amplitude_yaw_forearm))
+original_data <- select(original_data, -c(X,user_name))
+
+## library(lubridate)
+## original_data$cvtd_timestamp <- mdy_hm(original_data$cvtd_timestamp)
+original_data$classe <- as.factor(original_data$classe)
+original_data <- subset(original_data, !is.na(cvtd_timestamp))
+
+library(caret)
+inTrain <- createDataPartition(y=original_data$classe, p=0.6, list=FALSE)
+training <- original_data[inTrain,]  ## 11776*58
+testing <- original_data[-inTrain,]
+predicting <- read.csv("pml-testing.csv", as.is = TRUE)
+```
+
+## Analysis and results
+
+Set up a model with random forest:
+
+```{r}
+set.seed(32343)
+modelFit <- train(classe~.,data=training,method="rf", prox=TRUE)
+print(modelFit$finalModel)
+pred <- predict(modelFit, testing); testing$classe_right <- pred==testing$classe
+```
+
+Now set up a model with rpart:
+
+```{r}
+modelFit2 <- train(classe~., method="rpart", data=training)
+
+print(modelFit2$finalModel)
+library(rattle)
+fancyRpartPlot(modelFit2$finalModel)
+pred2 <- predict(modelFit2, newdata=testing); testing$classe_right2 <- pred2==testing$classe
+
+```
+
+We can tell first model got better accuracy:
+
+```{r}
+modelFit
+modelFit2
+```
+
+We can verify first model "rf" against testing set:
+
+```{r}
+## testing$classe_right
+table(pred, testing$classe)
+```
+
+Then the second model "rpart":
+
+```{r}
+## testing$classe_right2
+table(pred2,testing$classe)
+```
+
+Clearly model 1 (random forest) got much better performance.
+
+Finally we use model 1 on predicting data set:
+
+```{r}
+pred3 <- predict(modelFit, newdata=predicting)
+pred3
+```
+
+\newpage
+
+## Supporting materials
+
+### Data
+Data comes from [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har).
+
+### Code and figures
+
+N/A.
+
+### Environment and software
+
+This report was created through "Knit PDF" in RStudio, on Windows 7 Premium (64bit) Chinese version.
+
+Following software were used:
+
+1. R i386 3.1.2
+2. R Studio 0.98.1091
+3. Knitr_1.9
+4. rmarkdown_0.5.1
+5. dplyr_0.4.1
+6. lubridate_1.3.3
+7. caret_6.0-41
+8. randomForest_4.6-10
+9. rpart_4.1-9
+
+### Contact
+
+If you have any issues/concerns, please feel free to [contact me](mailto:jiangwei49@yahoo.com).
